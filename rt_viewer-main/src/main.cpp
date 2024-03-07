@@ -146,7 +146,7 @@ void showGui(Context &ctx)
     // ...
 
     ImGui::Text("Progress");
-    ImGui::ProgressBar(float(ctx.rtx.current_frame) / ctx.rtx.max_frames);
+    ImGui::ProgressBar(float(ctx.rtx.current_frame) / ctx.rtx.max_frames);b
     if (ImGui::Button("Freeze/Resume")) { ctx.rtx.freeze = !ctx.rtx.freeze; }
     ImGui::SameLine();
     if (ImGui::Button("Reset")) { rt::resetImage(ctx.rtx); }
