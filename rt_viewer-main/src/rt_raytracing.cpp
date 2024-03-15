@@ -73,15 +73,6 @@ namespace rt
     // }
     //
     // See Chapter 7 in the "Ray Tracing in a Weekend" book
-    glm::vec3 random_in_unit_sphere()
-    {
-        glm::vec3 p;
-        do
-        {
-            p = 2.0f * glm::vec3(drand48(), drand48(), drand48()) - glm::vec3(1, 1, 1);
-        } while (glm::length(p) >= 1.0f);
-        return p;
-    }
 
     glm::vec3 color(RTContext &rtx, const Ray &r, int max_bounces)
     {
@@ -91,10 +82,16 @@ namespace rt
         HitRecord rec;
         if (hit_world(r, 0.001f, 9999.0f, rec))
         {
+            // Ray scattered;
+            // glm::vec3 target = rec.p + rec.normal + cg::random_in_unit_sphere();
+            // scattered = Ray(rec.p, target - rec.p);
+            // return 0.5f * color(rtx, scattered, max_bounces - 1); // Assuming a fixed albedo of 0.5 for simplicity
+
             Ray scattered;
-            glm::vec3 target = rec.p + rec.normal + random_in_unit_sphere();
-            scattered = Ray(rec.p, target - rec.p);
-            return 0.5f * color(rtx, scattered, max_bounces - 1); // Assuming a fixed albedo of 0.5 for simplicity
+            glm::vec3 attenuation;
+            if (rec.mat_ptr->scatter(r, rec, attenuation, scattered))
+                return attenuation * color(rtx, scattered, max_bounces - 1);
+            return glm::vec3(0, 0, 0);
         }
 
         glm::vec3 unit_direction = glm::normalize(r.direction());
@@ -105,30 +102,18 @@ namespace rt
     // MODIFY THIS FUNCTION!
     void setupScene(RTContext &rtx, const char *filename)
     {
-        auto material_ground = std::make_shared<Lambertian>(glm::vec3(0.8, 0.8, 0.0));
-        auto material_center = std::make_shared<Lambertian>(glm::vec3(0.7, 0.3, 0.3));
-        auto material_left = std::make_shared<Metal>(glm::vec3(0.8, 0.8, 0.8));
-        auto material_right = std::make_shared<Metal>(glm::vec3(0.8, 0.6, 0.2));
+        auto material_ground = std::make_shared<Lambertian>(rtx.ground_color);
+        auto material_center = std::make_shared<Lambertian>(rtx.color_center);
+        auto material_left = std::make_shared<Metal>(rtx.color_left, rtx.fuzz_left);
+        auto material_right = std::make_shared<Metal>(rtx.color_right, rtx.fuzz_right);
 
         g_scene.ground = Sphere(glm::vec3(0.0f, -1000.5f, 0.0f), 1000.0f, material_ground);
         g_scene.spheres = {
-            Sphere(glm::vec3(0.0f, 0.0f, 0.0f), 0.5f, material_left),
-            Sphere(glm::vec3(1.0f, 0.0f, 0.0f), 0.5f, material_center),
-            Sphere(glm::vec3(-1.0f, 0.0f, 0.0f), 0.5f, material_right),
-            Sphere(glm::vec3(-1.25f, -0.25f, 1.0f), 0.25f, material_center),
+            Sphere(glm::vec3(0.0f, 0.0f, 0.0f), 0.5f, material_center),
+            Sphere(glm::vec3(-1.0f, 0.0f, 0.0f), 0.5f, material_left),
+            Sphere(glm::vec3(1.0f, 0.0f, 0.0f), 0.5f, material_right),
+            // Sphere(glm::vec3(-1.25f, -0.25f, 1.0f), 0.25f, material_right),
         };
-
-        // g_scene.ground = Sphere(glm::vec3(0.0f, -1000.5f, 0.0f), 1000.0f, material_ground);
-        // g_scene.spheres.push_back(Sphere(glm::vec3(0.0, -100.5, -1.0), 100.0, material_ground));
-        // g_scene.spheres.push_back(Sphere(glm::vec3(0.0, 0.0, -1.0), 0.5, material_center));
-        // g_scene.spheres.push_back(Sphere(glm::vec3(-1.0, 0.0, -1.0), 0.5, material_left));
-        // g_scene.spheres.push_back(Sphere(glm::vec3(1.0, 0.0, -1.0), 0.5, material_right));
-
-        // g_scene.spheres.clear();                                                                     // Clear any existing spheres in the vector
-        // g_scene.spheres.push_back(Sphere(glm::vec3(0.0f, 0.0f, 0.0f), 0.5f, default_material));      // Non-metallic sphere
-        // g_scene.spheres.push_back(Sphere(glm::vec3(1.0f, 0.0f, 0.0f), 0.5f, metal_material));        // Metallic sphere
-        // g_scene.spheres.push_back(Sphere(glm::vec3(-1.0f, 0.0f, 0.0f), 0.5f, default_material));     // Non-metallic sphere
-        // g_scene.spheres.push_back(Sphere(glm::vec3(-1.25f, -0.25f, 1.0f), 0.25f, default_material)); // Another non-metallic sphere
     }
 
     // g_scene.boxes = {
@@ -207,6 +192,18 @@ namespace rt
         }
     }
 
+    void updateScene(RTContext &rtx)
+    {
+        auto material_ground = std::make_shared<Lambertian>(rtx.ground_color);
+        auto material_center = std::make_shared<Lambertian>(rtx.color_center);
+        auto material_left = std::make_shared<Metal>(rtx.color_left, rtx.fuzz_left);
+        auto material_right = std::make_shared<Metal>(rtx.color_right, rtx.fuzz_right);
+        g_scene.ground.mat_ptr = material_ground;
+        g_scene.spheres[0].mat_ptr = material_center;
+        g_scene.spheres[1].mat_ptr = material_left;
+        g_scene.spheres[2].mat_ptr = material_right;
+    }
+
     void updateImage(RTContext &rtx)
     {
         if (rtx.freeze)
@@ -217,6 +214,8 @@ namespace rt
 
         if (rtx.current_frame < rtx.max_frames)
         {
+            updateScene(rtx);
+
             rtx.current_line += 1;
             if (rtx.current_line >= rtx.height)
             {

@@ -171,7 +171,21 @@ void showGui(Context &ctx)
     // Add more settings and parameters here
     ImGui::Checkbox("Gamma Correction", &ctx.gammaCorrection);
     glUniform1i(glGetUniformLocation(ctx.program, "u_gammaCorrection"), ctx.gammaCorrection);
-
+    if (ImGui::CollapsingHeader("Left sphere", ImGuiTreeNodeFlags_DefaultOpen))
+    {
+        ImGui::ColorEdit3("Color left sphere", &ctx.rtx.color_left[0]);
+        ImGui::SliderFloat("Fuzziness left sphere", &ctx.rtx.fuzz_left, 0.0f, 1.0f);
+    }
+    if (ImGui::CollapsingHeader("Right sphere", ImGuiTreeNodeFlags_DefaultOpen))
+    {
+        ImGui::ColorEdit3("Color right sphere", &ctx.rtx.color_right[0]);
+        ImGui::SliderFloat("Fuzziness right sphere", &ctx.rtx.fuzz_right, 0.0f, 1.0f);
+    }
+    if (ImGui::CollapsingHeader("Center sphere", ImGuiTreeNodeFlags_DefaultOpen))
+    {
+        ImGui::ColorEdit3("Color center sphere", &ctx.rtx.color_center[0]);
+        ImGui::SliderFloat("Fuzziness center sphere", &ctx.rtx.fuzz_center, 0.0f, 1.0f);
+    }
 
     ImGui::Text("Progress");
     ImGui::ProgressBar(float(ctx.rtx.current_frame) / ctx.rtx.max_frames);
