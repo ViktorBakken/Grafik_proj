@@ -4,13 +4,17 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtx/component_wise.hpp>
+#include <memory>
 
 namespace rt {
+
+struct Material; // Forward declaration
 
 struct HitRecord {
     float t;
     glm::vec3 p;
     glm::vec3 normal;
+    std::shared_ptr<Material> mat_ptr; // Pointer to material
 };
 
 class Hitable {

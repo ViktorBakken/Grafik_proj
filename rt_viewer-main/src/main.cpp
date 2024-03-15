@@ -139,6 +139,7 @@ void showGui(Context &ctx)
     }
     if (ImGui::ColorEdit3("Sky color", &ctx.rtx.sky_color[0])) { rt::resetAccumulation(ctx.rtx); }
     if (ImGui::ColorEdit3("Ground color", &ctx.rtx.ground_color[0])) {
+    if (ImGui::Button("Reset")) { rt::resetImage(ctx.rtx); }
         rt::resetAccumulation(ctx.rtx);
     }
     if (ImGui::Checkbox("Show normals", &ctx.rtx.show_normals)) { rt::resetAccumulation(ctx.rtx); }
