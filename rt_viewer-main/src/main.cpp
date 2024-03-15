@@ -22,7 +22,8 @@
 #include <algorithm>
 
 // Struct for resources and state
-struct Context {
+struct Context
+{
     int width;
     int height;
     float aspect;
@@ -33,15 +34,19 @@ struct Context {
     rt::RTContext rtx;
     GLuint texture = 0;
     float elapsed_time;
+    bool gammaCorrection = true;
 };
 
 // Returns the value of an environment variable
 std::string getEnvVar(const std::string &name)
 {
     char const *value = std::getenv(name.c_str());
-    if (value == nullptr) {
+    if (value == nullptr)
+    {
         return std::string();
-    } else {
+    }
+    else
+    {
         return std::string(value);
     }
 }
@@ -50,7 +55,8 @@ std::string getEnvVar(const std::string &name)
 std::string shaderDir(void)
 {
     std::string rootDir = getEnvVar("RT_VIEWER_ROOT");
-    if (rootDir.empty()) {
+    if (rootDir.empty())
+    {
         std::cout << "Error: RT_VIEWER_ROOT is not set." << std::endl;
         std::exit(EXIT_FAILURE);
     }
@@ -61,7 +67,8 @@ std::string shaderDir(void)
 std::string modelDir(void)
 {
     std::string rootDir = getEnvVar("RT_VIEWER_ROOT");
-    if (rootDir.empty()) {
+    if (rootDir.empty())
+    {
         std::cout << "Error: RT_VIEWER_ROOT is not set." << std::endl;
         std::exit(EXIT_FAILURE);
     }
@@ -104,13 +111,20 @@ void init(Context &ctx)
 void updateRayTracing(Context &ctx)
 {
     // Check for convergence
-    if (ctx.rtx.current_frame >= ctx.rtx.max_frames) { return; }
+    if (ctx.rtx.current_frame >= ctx.rtx.max_frames)
+    {
+        return;
+    }
 
     // Render as much as we can within the current frame
     float tic = glfwGetTime();
-    while (true) {
+    while (true)
+    {
         rt::updateImage(ctx.rtx);
-        if (glfwGetTime() - tic > (1.0f / 60.0f)) { break; }
+        if (glfwGetTime() - tic > (1.0f / 60.0f))
+        {
+            break;
+        }
     }
 }
 
@@ -134,23 +148,42 @@ void drawImage(Context &ctx)
 // MODIFY THIS FUNCTION
 void showGui(Context &ctx)
 {
-    if (ImGui::SliderInt("Max bounces", &ctx.rtx.max_bounces, 0, 10)) {
+    if (ImGui::SliderInt("Max bounces", &ctx.rtx.max_bounces, 0, 10))
+    {
         rt::resetAccumulation(ctx.rtx);
     }
-    if (ImGui::ColorEdit3("Sky color", &ctx.rtx.sky_color[0])) { rt::resetAccumulation(ctx.rtx); }
-    if (ImGui::ColorEdit3("Ground color", &ctx.rtx.ground_color[0])) {
-    if (ImGui::Button("Reset")) { rt::resetImage(ctx.rtx); }
+    if (ImGui::ColorEdit3("Sky color", &ctx.rtx.sky_color[0]))
+    {
         rt::resetAccumulation(ctx.rtx);
     }
-    if (ImGui::Checkbox("Show normals", &ctx.rtx.show_normals)) { rt::resetAccumulation(ctx.rtx); }
+    if (ImGui::ColorEdit3("Ground color", &ctx.rtx.ground_color[0]))
+    {
+        if (ImGui::Button("Reset"))
+        {
+            rt::resetImage(ctx.rtx);
+        }
+        rt::resetAccumulation(ctx.rtx);
+    }
+    if (ImGui::Checkbox("Show normals", &ctx.rtx.show_normals))
+    {
+        rt::resetAccumulation(ctx.rtx);
+    }
     // Add more settings and parameters here
-    // ...
+    ImGui::Checkbox("Gamma Correction", &ctx.gammaCorrection);
+    glUniform1i(glGetUniformLocation(ctx.program, "u_gammaCorrection"), ctx.gammaCorrection);
+
 
     ImGui::Text("Progress");
     ImGui::ProgressBar(float(ctx.rtx.current_frame) / ctx.rtx.max_frames);
-    if (ImGui::Button("Freeze/Resume")) { ctx.rtx.freeze = !ctx.rtx.freeze; }
+    if (ImGui::Button("Freeze/Resume"))
+    {
+        ctx.rtx.freeze = !ctx.rtx.freeze;
+    }
     ImGui::SameLine();
-    if (ImGui::Button("Reset")) { rt::resetImage(ctx.rtx); }
+    if (ImGui::Button("Reset"))
+    {
+        rt::resetImage(ctx.rtx);
+    }
 }
 
 void display(Context &ctx)
@@ -162,7 +195,10 @@ void display(Context &ctx)
     glm::mat4 trackball = cg::trackballGetRotationMatrix(ctx.trackball);
     glm::vec3 eye = glm::mat3(trackball) * glm::vec3(0.0f, 0.0f, 2.0f);
     ctx.rtx.view = glm::lookAt(eye, glm::vec3(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-    if (ctx.trackball.tracking) { rt::resetAccumulation(ctx.rtx); }
+    if (ctx.trackball.tracking)
+    {
+        rt::resetAccumulation(ctx.rtx);
+    }
 
     // Update and draw ray tracing image
     updateRayTracing(ctx);
@@ -180,7 +216,8 @@ void reloadShaders(Context *ctx)
 
 void mouseButtonPressed(Context *ctx, int button, int x, int y)
 {
-    if (button == GLFW_MOUSE_BUTTON_LEFT) {
+    if (button == GLFW_MOUSE_BUTTON_LEFT)
+    {
         ctx->trackball.center = glm::vec2(x, y);
         cg::trackballStartTracking(ctx->trackball, glm::vec2(x, y));
     }
@@ -188,12 +225,18 @@ void mouseButtonPressed(Context *ctx, int button, int x, int y)
 
 void mouseButtonReleased(Context *ctx, int button, int x, int y)
 {
-    if (button == GLFW_MOUSE_BUTTON_LEFT) { cg::trackballStopTracking(ctx->trackball); }
+    if (button == GLFW_MOUSE_BUTTON_LEFT)
+    {
+        cg::trackballStopTracking(ctx->trackball);
+    }
 }
 
 void moveTrackball(Context *ctx, int x, int y)
 {
-    if (ctx->trackball.tracking) { cg::trackballMove(ctx->trackball, glm::vec2(x, y)); }
+    if (ctx->trackball.tracking)
+    {
+        cg::trackballMove(ctx->trackball, glm::vec2(x, y));
+    }
 }
 
 void errorCallback(int /*error*/, const char *description)
@@ -205,39 +248,57 @@ void keyCallback(GLFWwindow *window, int key, int scancode, int action, int mods
 {
     // Forward event to GUI
     ImGui_ImplGlfwGL3_KeyCallback(window, key, scancode, action, mods);
-    if (ImGui::GetIO().WantCaptureKeyboard) { return; }  // Skip other handling
+    if (ImGui::GetIO().WantCaptureKeyboard)
+    {
+        return;
+    } // Skip other handling
 
     Context *ctx = static_cast<Context *>(glfwGetWindowUserPointer(window));
-    if (key == GLFW_KEY_R && action == GLFW_PRESS) { reloadShaders(ctx); }
+    if (key == GLFW_KEY_R && action == GLFW_PRESS)
+    {
+        reloadShaders(ctx);
+    }
 }
 
 void charCallback(GLFWwindow *window, unsigned int codepoint)
 {
     // Forward event to GUI
     ImGui_ImplGlfwGL3_CharCallback(window, codepoint);
-    if (ImGui::GetIO().WantTextInput) { return; }  // Skip other handling
+    if (ImGui::GetIO().WantTextInput)
+    {
+        return;
+    } // Skip other handling
 }
 
 void mouseButtonCallback(GLFWwindow *window, int button, int action, int mods)
 {
     // Forward event to GUI
     ImGui_ImplGlfwGL3_MouseButtonCallback(window, button, action, mods);
-    if (ImGui::GetIO().WantCaptureMouse) { return; }  // Skip other handling
+    if (ImGui::GetIO().WantCaptureMouse)
+    {
+        return;
+    } // Skip other handling
 
     double x, y;
     glfwGetCursorPos(window, &x, &y);
 
     Context *ctx = static_cast<Context *>(glfwGetWindowUserPointer(window));
-    if (action == GLFW_PRESS) {
+    if (action == GLFW_PRESS)
+    {
         mouseButtonPressed(ctx, button, x, y);
-    } else {
+    }
+    else
+    {
         mouseButtonReleased(ctx, button, x, y);
     }
 }
 
 void cursorPosCallback(GLFWwindow *window, double x, double y)
 {
-    if (ImGui::GetIO().WantCaptureMouse) { return; }  // Skip other handling
+    if (ImGui::GetIO().WantCaptureMouse)
+    {
+        return;
+    } // Skip other handling
 
     Context *ctx = static_cast<Context *>(glfwGetWindowUserPointer(window));
     moveTrackball(ctx, x, y);
@@ -284,7 +345,8 @@ int main(void)
     // Load OpenGL functions
     glewExperimental = true;
     GLenum status = glewInit();
-    if (status != GLEW_OK) {
+    if (status != GLEW_OK)
+    {
         std::cerr << "Error: " << glewGetErrorString(status) << std::endl;
         std::exit(EXIT_FAILURE);
     }
@@ -299,7 +361,8 @@ int main(void)
     init(ctx);
 
     // Start rendering loop
-    while (!glfwWindowShouldClose(ctx.window)) {
+    while (!glfwWindowShouldClose(ctx.window))
+    {
         glfwPollEvents();
         ctx.elapsed_time = glfwGetTime();
         ImGui_ImplGlfwGL3_NewFrame();
