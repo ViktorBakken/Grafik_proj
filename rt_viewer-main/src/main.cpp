@@ -100,6 +100,7 @@ void init(Context &ctx)
 {
     ctx.program =
         cg::loadShaderProgram(shaderDir() + "draw_image.vert", shaderDir() + "draw_image.frag");
+
     createImageTexture(&ctx.texture, ctx.rtx.width, ctx.rtx.height);
 
     // Set up ray tracing scene
@@ -164,28 +165,70 @@ void showGui(Context &ctx)
         }
         rt::resetAccumulation(ctx.rtx);
     }
+
     if (ImGui::Checkbox("Show normals", &ctx.rtx.show_normals))
     {
         rt::resetAccumulation(ctx.rtx);
     }
+
+    if (ImGui::SliderInt("Anti-aliasing quality", &ctx.rtx.sample_count, 1, 15))
+    {
+        rt::resetImage(ctx.rtx);
+    }
+
     // Add more settings and parameters here
-    ImGui::Checkbox("Gamma Correction", &ctx.gammaCorrection);
+    ImGui::Checkbox("Gamma correction", &ctx.gammaCorrection);
     glUniform1i(glGetUniformLocation(ctx.program, "u_gammaCorrection"), ctx.gammaCorrection);
+    if (ImGui::Checkbox("Show mesh", &ctx.rtx.show_mesh))
+    {
+        rt::resetImage(ctx.rtx);
+    }
+
     if (ImGui::CollapsingHeader("Left sphere", ImGuiTreeNodeFlags_DefaultOpen))
     {
-        ImGui::ColorEdit3("Color left sphere", &ctx.rtx.color_left[0]);
-        ImGui::SliderFloat("Fuzziness left sphere", &ctx.rtx.fuzz_left, 0.0f, 1.0f);
+        if (ImGui::ColorEdit3("Color left sphere", &ctx.rtx.color_left[0]))
+        {
+            rt::resetAccumulation(ctx.rtx);
+        }
+        if (ImGui::Checkbox("Metallic left", &ctx.rtx.is_metallic_left))
+        {
+            rt::resetAccumulation(ctx.rtx);
+        }
+        if (ImGui::SliderFloat("Fuzziness left sphere", &ctx.rtx.fuzz_left, 0.0f, 1.0f))
+        {
+            rt::resetAccumulation(ctx.rtx);
+        }
     }
     if (ImGui::CollapsingHeader("Right sphere", ImGuiTreeNodeFlags_DefaultOpen))
     {
-        ImGui::ColorEdit3("Color right sphere", &ctx.rtx.color_right[0]);
-        ImGui::SliderFloat("Fuzziness right sphere", &ctx.rtx.fuzz_right, 0.0f, 1.0f);
+        if (ImGui::ColorEdit3("Color right sphere", &ctx.rtx.color_right[0]))
+        {
+            rt::resetAccumulation(ctx.rtx);
+        }
+        if (ImGui::Checkbox("Metallic right", &ctx.rtx.is_metallic_right))
+        {
+            rt::resetAccumulation(ctx.rtx);
+        }
+        if (ImGui::SliderFloat("Fuzziness right sphere", &ctx.rtx.fuzz_right, 0.0f, 1.0f))
+        {
+            rt::resetAccumulation(ctx.rtx);
+        }
     }
-    if (ImGui::CollapsingHeader("Center sphere", ImGuiTreeNodeFlags_DefaultOpen))
-    {
-        ImGui::ColorEdit3("Color center sphere", &ctx.rtx.color_center[0]);
-        ImGui::SliderFloat("Fuzziness center sphere", &ctx.rtx.fuzz_center, 0.0f, 1.0f);
-    }
+    // if (ImGui::CollapsingHeader("Mesh", ImGuiTreeNodeFlags_DefaultOpen))
+    // {
+    //     if (ImGui::ColorEdit3("Color mesh", &ctx.rtx.color_center[0]))
+    //     {
+    //         rt::resetAccumulation(ctx.rtx);
+    //     }
+    //     if (ImGui::Checkbox("Metallic mesh", &ctx.rtx.is_metallic_center))
+    //     {
+    //         rt::resetAccumulation(ctx.rtx);
+    //     }
+    //     if (ImGui::SliderFloat("Fuzziness mesh", &ctx.rtx.fuzz_center, 0.0f, 1.0f))
+    //     {
+    //         rt::resetAccumulation(ctx.rtx);
+    //     }
+    // }
 
     ImGui::Text("Progress");
     ImGui::ProgressBar(float(ctx.rtx.current_frame) / ctx.rtx.max_frames);

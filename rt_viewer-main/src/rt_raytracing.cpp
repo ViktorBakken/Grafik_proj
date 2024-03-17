@@ -5,6 +5,10 @@
 #include "rt_triangle.h"
 #include "rt_box.h"
 #include "rt_material.h"
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <GL/glew.h>
+#include <GLFW/glfw3.h>
 
 #include "cg_utils2.h" // Used for OBJ-mesh loading
 #include <stdlib.h>    // Needed for drand48()
@@ -22,11 +26,15 @@ namespace rt
         Box mesh_bbox;
     } g_scene;
 
-    bool hit_world(const Ray &r, float t_min, float t_max, HitRecord &rec)
+    bool hit_world(const Ray &r, float t_min, float t_max, HitRecord &rec, RTContext &rtx)
     {
         HitRecord temp_rec;
         bool hit_anything = false;
         float closest_so_far = t_max;
+
+        // Add a bounding volume test for the mesh
+        if (rtx.show_mesh && !g_scene.mesh_bbox.hit(r, t_min, closest_so_far, temp_rec))
+            return false;
 
         if (g_scene.ground.hit(r, t_min, closest_so_far, temp_rec))
         {
@@ -34,13 +42,16 @@ namespace rt
             closest_so_far = temp_rec.t;
             rec = temp_rec;
         }
-        for (int i = 0; i < g_scene.spheres.size(); ++i)
+        if (!rtx.show_mesh)
         {
-            if (g_scene.spheres[i].hit(r, t_min, closest_so_far, temp_rec))
+            for (int i = 0; i < g_scene.spheres.size(); ++i)
             {
-                hit_anything = true;
-                closest_so_far = temp_rec.t;
-                rec = temp_rec;
+                if (g_scene.spheres[i].hit(r, t_min, closest_so_far, temp_rec))
+                {
+                    hit_anything = true;
+                    closest_so_far = temp_rec.t;
+                    rec = temp_rec;
+                }
             }
         }
         for (int i = 0; i < g_scene.boxes.size(); ++i)
@@ -52,13 +63,16 @@ namespace rt
                 rec = temp_rec;
             }
         }
-        for (int i = 0; i < g_scene.mesh.size(); ++i)
+        if (rtx.show_mesh)
         {
-            if (g_scene.mesh[i].hit(r, t_min, closest_so_far, temp_rec))
+            for (int i = 0; i < g_scene.mesh.size(); ++i)
             {
-                hit_anything = true;
-                closest_so_far = temp_rec.t;
-                rec = temp_rec;
+                if (g_scene.mesh[i].hit(r, t_min, closest_so_far, temp_rec))
+                {
+                    hit_anything = true;
+                    closest_so_far = temp_rec.t;
+                    rec = temp_rec;
+                }
             }
         }
         return hit_anything;
@@ -80,17 +94,22 @@ namespace rt
             return glm::vec3(0.0f);
 
         HitRecord rec;
-        if (hit_world(r, 0.001f, 9999.0f, rec))
+        if (hit_world(r, 0.001f, 9999.0f, rec, rtx))
         {
-            // Ray scattered;
-            // glm::vec3 target = rec.p + rec.normal + cg::random_in_unit_sphere();
-            // scattered = Ray(rec.p, target - rec.p);
-            // return 0.5f * color(rtx, scattered, max_bounces - 1); // Assuming a fixed albedo of 0.5 for simplicity
 
             Ray scattered;
             glm::vec3 attenuation;
-            if (rec.mat_ptr->scatter(r, rec, attenuation, scattered))
-                return attenuation * color(rtx, scattered, max_bounces - 1);
+            if (rtx.show_normals)
+            {
+                return rec.normal;
+            }
+
+            else
+            {
+                if (rec.mat_ptr->scatter(r, rec, attenuation, scattered))
+                    return attenuation * color(rtx, scattered, max_bounces - 1);
+            }
+
             return glm::vec3(0, 0, 0);
         }
 
@@ -103,45 +122,50 @@ namespace rt
     void setupScene(RTContext &rtx, const char *filename)
     {
         auto material_ground = std::make_shared<Lambertian>(rtx.ground_color);
-        auto material_center = std::make_shared<Lambertian>(rtx.color_center);
+        auto material_mesh = std::make_shared<Lambertian>(rtx.color_center);
         auto material_left = std::make_shared<Metal>(rtx.color_left, rtx.fuzz_left);
         auto material_right = std::make_shared<Metal>(rtx.color_right, rtx.fuzz_right);
 
+        cg::OBJMesh j;
+        cg::objMeshLoad(j, filename);
+
+        for (int i = 0; i < j.indices.size(); i += 3)
+        {
+            auto v0 = j.vertices[j.indices[i]];
+            auto v1 = j.vertices[j.indices[i + 1]];
+            auto v2 = j.vertices[j.indices[i + 2]];
+
+            g_scene.mesh.push_back(Triangle(v0, v1, v2, material_mesh));
+        }
+
+        std::cout << g_scene.mesh.size() << std::endl;
+
+        // Compute the bounding box of the mesh
+        glm::vec3 minBounds = glm::vec3(0.0f);
+        glm::vec3 maxBounds = glm::vec3(0.0f);
+
+        for (glm::vec3 &vertex : j.vertices)
+        {
+            minBounds = glm::min(minBounds, vertex);
+            maxBounds = glm::max(maxBounds, vertex);
+        }
+
+        // Store the bounding box in the scene struct
+        g_scene.mesh_bbox = Box((minBounds + maxBounds) * 0.5f, (maxBounds - minBounds) * 0.5f);
+
         g_scene.ground = Sphere(glm::vec3(0.0f, -1000.5f, 0.0f), 1000.0f, material_ground);
         g_scene.spheres = {
-            Sphere(glm::vec3(0.0f, 0.0f, 0.0f), 0.5f, material_center),
-            Sphere(glm::vec3(-1.0f, 0.0f, 0.0f), 0.5f, material_left),
-            Sphere(glm::vec3(1.0f, 0.0f, 0.0f), 0.5f, material_right),
-            // Sphere(glm::vec3(-1.25f, -0.25f, 1.0f), 0.25f, material_right),
+            Sphere(glm::vec3(-0.5f, 0.0f, 0.0f), 0.5f, material_left),
+            Sphere(glm::vec3(0.5f, 0.0f, 0.0f), 0.5f, material_right),
         };
     }
-
-    // g_scene.boxes = {
-    //     Box(glm::vec3(0.0f, -0.25f, 0.0f), glm::vec (0.25f)),
-    //    Box(glm::vec3(1.0f, -0.25f, 0.0f), glm::vec3(0.25f)),
-    //    Box(glm::vec3(-1.0f, -0.25f, 0.0f), glm::vec3(0.25f)),
-    //};
-
-    // cg::OBJMesh mesh;
-    // cg::objMeshLoad(mesh, filename);
-    // g_scene.mesh.clear();
-    // for (int i = 0; i < mesh.indices.size(); i += 3) {
-    //     int i0 = mesh.indices[i + 0];
-    //     int i1 = mesh.indices[i + 1];
-    //     int i2 = mesh.indices[i + 2];
-    //     glm::vec3 v0 = mesh.vertices[i0] + glm::vec3(0.0f, 0.135f, 0.0f);
-    //     glm::vec3 v1 = mesh.vertices[i1] + glm::vec3(0.0f, 0.135f, 0.0f);
-    //     glm::vec3 v2 = mesh.vertices[i2] + glm::vec3(0.0f, 0.135f, 0.0f);
-    //     g_scene.mesh.push_back(Triangle(v0, v1, v2));
-    // }
-    // }
 
     // MODIFY THIS FUNCTION!
     void updateLine(RTContext &rtx, int y)
     {
-        int nx = rtx.width;  // Image width in pixels
-        int ny = rtx.height; // Image height in pixels
-        int ns = 2;          // Number of samples per pixel for anti-aliasing, adjust as needed for quality vs performance
+        int nx = rtx.width;        // Image width in pixels
+        int ny = rtx.height;       // Image height in pixels
+        int ns = rtx.sample_count; // Number of samples per pixel for anti-aliasing, adjust as needed for quality vs performance
 
         // Aspect ratio of the image
         float aspect = float(nx) / float(ny);
@@ -155,8 +179,8 @@ namespace rt
         // Inverse of the view matrix to transform rays from view space to world space
         glm::mat4 world_from_view = glm::inverse(rtx.view);
 
-// Parallelize loop with OpenMP for improved performance
-#pragma omp parallel for schedule(dynamic)
+        // Parallelize loop with OpenMP for improved performance
+        // #pragma omp parallel for schedule(dynamic)
         for (int x = 0; x < nx; ++x)
         {
             glm::vec3 col(0, 0, 0); // Accumulator for the color of the pixel
@@ -192,18 +216,6 @@ namespace rt
         }
     }
 
-    void updateScene(RTContext &rtx)
-    {
-        auto material_ground = std::make_shared<Lambertian>(rtx.ground_color);
-        auto material_center = std::make_shared<Lambertian>(rtx.color_center);
-        auto material_left = std::make_shared<Metal>(rtx.color_left, rtx.fuzz_left);
-        auto material_right = std::make_shared<Metal>(rtx.color_right, rtx.fuzz_right);
-        g_scene.ground.mat_ptr = material_ground;
-        g_scene.spheres[0].mat_ptr = material_center;
-        g_scene.spheres[1].mat_ptr = material_left;
-        g_scene.spheres[2].mat_ptr = material_right;
-    }
-
     void updateImage(RTContext &rtx)
     {
         if (rtx.freeze)
@@ -214,8 +226,6 @@ namespace rt
 
         if (rtx.current_frame < rtx.max_frames)
         {
-            updateScene(rtx);
-
             rtx.current_line += 1;
             if (rtx.current_line >= rtx.height)
             {
@@ -233,9 +243,54 @@ namespace rt
         rtx.current_line = 0;
         rtx.freeze = false;
     }
+    void updateMaterials(RTContext &rtx)
+    {
+        // if (rtx.is_metallic_center && rtx.show_mesh)
+        // {
+        //     auto material_mesh = std::make_shared<Metal>(rtx.color_center, rtx.fuzz_center);
+        //     for (size_t i = 0; i < g_scene.mesh.size(); i++)
+        //     {
+        //         g_scene.mesh[i].mat_ptr = material_mesh;
+        //     }
+        // }
+        // else if (rtx.is_metallic_center && rtx.show_mesh)
+        // {
+        //     auto material_mesh = std::make_shared<Lambertian>(rtx.color_center);
+        //     for (size_t i = 0; i < g_scene.mesh.size(); i++)
+        //     {
+        //         g_scene.mesh[i].mat_ptr = material_mesh;
+        //     }
+        // }
+
+        if (rtx.is_metallic_left)
+        {
+            auto material_left = std::make_shared<Metal>(rtx.color_left, rtx.fuzz_left);
+            g_scene.spheres[0].mat_ptr = material_left;
+        }
+        else
+        {
+            auto material_left = std::make_shared<Lambertian>(rtx.color_left);
+            g_scene.spheres[0].mat_ptr = material_left;
+        }
+
+        if (rtx.is_metallic_right)
+        {
+            auto material_right = std::make_shared<Metal>(rtx.color_right, rtx.fuzz_right);
+            g_scene.spheres[1].mat_ptr = material_right;
+        }
+        else
+        {
+            auto material_right = std::make_shared<Lambertian>(rtx.color_right);
+            g_scene.spheres[1].mat_ptr = material_right;
+        }
+
+        auto material_ground = std::make_shared<Lambertian>(rtx.ground_color);
+        g_scene.ground.mat_ptr = material_ground;
+    }
 
     void resetAccumulation(RTContext &rtx)
     {
+        updateMaterials(rtx);
         rtx.current_frame = -1;
     }
 
